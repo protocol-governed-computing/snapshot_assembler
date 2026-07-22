@@ -159,30 +159,38 @@ def compute_composite_hash(domains: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Address-space collision detection (thin now; full reconciliation is the N>=2 job)
+# Cross-domain FQDN uniqueness (per-domain vocabularies are independent address namespaces)
 # ---------------------------------------------------------------------------
 
 def _check_address_space(domains: list[DomainInput]) -> None:
     """
-    Detect integer-address collisions across domains' vocabularies.
+    Composition safety check across domains.
 
-    N=1: a no-op (nothing to collide). N>=2: fails hard if the same integer address maps to
-    different FQDNs across domains. This is DETECTION only — composing the reconciled
-    forward/reverse maps is the deferred N>=2 reconciliation job (see contract).
+    Integer addresses are DOMAIN-LOCAL: the runtime loads each domain's own
+    `vocabulary/<domain>/{forward,reverse}.json` and resolves within it, so the same integer
+    address legitimately recurs across independent domains (platform 0x0000 ≠ workload 0x0000).
+    Cross-domain address reuse is therefore NOT a collision — it is the expected, isolated model.
+
+    What WOULD break composition is the same FQDN owned by two domains (ambiguous ownership). That
+    is what we guard here. True cross-domain *shared addressing* (reconciled composite forward/reverse
+    maps) only becomes necessary when a domain references another domain's artifacts by shared
+    address — deferred until the first cross-domain reference (see the assembly contract).
     """
-    seen: dict[int, tuple[str, str]] = {}  # int_addr -> (domain, fqdn)
+    # Compiler-internal graph vocabulary is shared infrastructure present in every domain — not
+    # domain-owned artifacts. Only artifact FQDNs carry ownership.
+    system_ns = {"edge_kind", "node_kind", "outcome", "transition"}
+    owner: dict[str, str] = {}  # fqdn -> domain
     for inp in domains:
         forward = _read_json(inp.source_root / "vocabulary" / inp.domain / "forward.json")
-        for hex_key, fqdn in forward.items():
-            addr = int(hex_key, 16)
-            if addr in seen and seen[addr][1] != fqdn:
-                od, ofqdn = seen[addr]
+        for fqdn in forward.values():
+            if "::" not in fqdn or fqdn.split("::", 1)[0] in system_ns:
+                continue  # internal graph vocab — domain-local by nature, legitimately shared
+            if fqdn in owner and owner[fqdn] != inp.domain:
                 raise AssemblyError(
-                    f"Address-space collision at 0x{addr:04X}: "
-                    f"{od}:{ofqdn!r} vs {inp.domain}:{fqdn!r}. "
-                    f"Vocabulary reconciliation required (assembler N>=2 job)."
+                    f"FQDN ownership conflict: {fqdn!r} present in both "
+                    f"'{owner[fqdn]}' and '{inp.domain}'. A domain must not redeclare another's artifact."
                 )
-            seen.setdefault(addr, (inp.domain, fqdn))
+            owner.setdefault(fqdn, inp.domain)
 
 
 # ---------------------------------------------------------------------------
