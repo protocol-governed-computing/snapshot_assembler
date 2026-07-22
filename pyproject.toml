@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snapshot_assembler"
+version = "0.1.0"
+description = "Protocol-Governed Computing — snapshot assembler: composes compiled projections into a manifest-pinned executable snapshot (import package: assembler)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+
+authors = [
+  { name = "Bhash Ganti aka Bachi" }
+]
+
+dependencies = []
+
+keywords = ["protocol-governed-computing", "pgc", "snapshot", "assembler", "manifest"]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent"
+]
+
+[project.scripts]
+pgc_assemble = "assembler.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["assembler*"]
