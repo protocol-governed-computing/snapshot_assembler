@@ -179,12 +179,17 @@ def _check_address_space(domains: list[DomainInput]) -> None:
     # Compiler-internal graph vocabulary is shared infrastructure present in every domain — not
     # domain-owned artifacts. Only artifact FQDNs carry ownership.
     system_ns = {"edge_kind", "node_kind", "outcome", "transition"}
+    # Platform-provided capabilities are legitimately CONSUMED cross-domain: a domain that invokes a
+    # platform CS/CT carries its execution binding (Option A "static link"), so the same
+    # capability_* FQDN appears in the owner (platform) AND every consumer. That is expected sharing,
+    # not redeclaration — the domain's OWN artifacts live in its own namespace and stay single-owned.
+    shared_ns = system_ns | {"capability_side_effects", "capability_transforms"}
     owner: dict[str, str] = {}  # fqdn -> domain
     for inp in domains:
         forward = _read_json(inp.source_root / "vocabulary" / inp.domain / "forward.json")
         for fqdn in forward.values():
-            if "::" not in fqdn or fqdn.split("::", 1)[0] in system_ns:
-                continue  # internal graph vocab — domain-local by nature, legitimately shared
+            if "::" not in fqdn or fqdn.split("::", 1)[0] in shared_ns:
+                continue  # shared infrastructure / platform-provided capability — not domain-owned
             if fqdn in owner and owner[fqdn] != inp.domain:
                 raise AssemblyError(
                     f"FQDN ownership conflict: {fqdn!r} present in both "
