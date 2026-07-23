@@ -253,16 +253,37 @@ def assemble(source_roots: list[Path], out_root: Path) -> dict[str, Any]:
     domains = [_domain_identity(inp) for inp in inputs]
 
     # --- regenerate the assembled projection tree ---
-    for kind in PROJECTIONS:
+    # Compose EVERY projection kind the compiler emitted (tokenized / trust / vocabulary / evidence /
+    # canonical / behavior_logic / …), each domain-scoped, so the consolidated snapshot is the single
+    # central inspection location. Two source shapes are handled:
+    #   * domain-scoped   <kind>/<domain>/…   (tokenized, trust, vocabulary, evidence) → <kind>/<domain>
+    #   * flat            <kind>/…            (canonical by type, behavior_logic by WF) → <kind>/<domain>
+    # Only tokenized/vocabulary/trust feed the composite identity; the rest are supplementary.
+    kinds: set[str] = set()
+    for inp in inputs:
+        for child in inp.source_root.iterdir():
+            if child.is_dir():
+                kinds.add(child.name)
+
+    for kind in kinds:
         dst_kind = out_root / kind
         if dst_kind.exists():
             shutil.rmtree(dst_kind)
+
     for inp in inputs:
-        for kind in PROJECTIONS:
-            src = inp.source_root / kind / inp.domain
-            dst = out_root / kind / inp.domain
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src, dst)
+        for kind in kinds:
+            src_scoped = inp.source_root / kind / inp.domain   # domain-scoped in source
+            src_flat = inp.source_root / kind                  # flat in source
+            _ignore = shutil.ignore_patterns(".DS_Store")
+            if src_scoped.is_dir():
+                shutil.copytree(src_scoped, out_root / kind / inp.domain, ignore=_ignore)
+            elif src_flat.is_dir():
+                shutil.copytree(src_flat, out_root / kind / inp.domain, ignore=_ignore)
+
+    # --- cross-domain query indexes over the composed snapshot (inspection; not identity) ---
+    from assembler.indexes import build_artifact_index, build_pps_index, write_index
+    write_index(out_root, "artifact_index/index.json", build_artifact_index(out_root))
+    write_index(out_root, "pps/index.json", build_pps_index(out_root))
 
     # --- identity + provenance ---
     composite = compute_composite_hash(domains)
