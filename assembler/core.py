@@ -290,6 +290,9 @@ def assemble(source_roots: list[Path], out_root: Path) -> dict[str, Any]:
     write_index(out_root, "artifact_index/index.json", build_artifact_index(out_root))
     write_index(out_root, "pps/index.json", build_pps_index(out_root))
 
+    # --- governance provenance: a domain must have been compiled against the governance it claims ---
+    _verify_governance_provenance(out_root)
+
     # --- identity + provenance ---
     composite = compute_composite_hash(domains)
     manifest = {
@@ -305,6 +308,70 @@ def assemble(source_roots: list[Path], out_root: Path) -> dict[str, Any]:
         json.dumps(manifest, indent=2, sort_keys=False) + "\n", encoding="utf-8"
     )
     return manifest
+
+
+# ---------------------------------------------------------------------------
+# Governance provenance — a domain was checked against the governance it records
+# ---------------------------------------------------------------------------
+
+# Kinds a domain build instantiates. MUST match the compiler's _inject_imported_governance
+# filter (compiler/stages/s1_extract.py): a governance invariant is imported into a domain iff
+# its applies_to_kinds intersects this set and it declares no layer/surface scope.
+_DOMAIN_INSTANTIATED = frozenset({"WF", "CC", "CS", "CT", "RB", "AC", "IN", "EV", "TI", "TE"})
+
+
+def _recompute_governance_closure(out_root: Path, source_domain: str) -> tuple[str, int]:
+    """Recompute the governance-closure hash from an assembled domain's canonical invariants.
+
+    Mirrors the compiler's closure exactly (fqdn + content_hash of each domain-applicable,
+    non-surface-scoped invariant, sorted). Drift between this and the compiler is caught by the
+    stage-5 mutation test, which asserts the two agree on an unchanged closure.
+    """
+    inv_dir = out_root / "canonical" / source_domain / "invariants"
+    members: list[tuple[str, str]] = []
+    if inv_dir.is_dir():
+        for path in inv_dir.glob("*.json"):
+            raw = _read_json(path)
+            proj = (raw.get("frontmatter", {}) or {}).get("assert_projection", {}) or {}
+            kinds = set(proj.get("applies_to_kinds", []) or [])
+            if not (kinds & _DOMAIN_INSTANTIATED):
+                continue
+            if (proj.get("scope", {}) or {}).get("applies_to"):
+                continue  # surface-specific — not generically imported
+            members.append((raw.get("fqdn_id", ""), raw.get("content_hash", "")))
+    members.sort()
+    h = hashlib.sha256()
+    for fqdn, content_hash in members:
+        h.update(fqdn.encode("utf-8")); h.update(b"\x00")
+        h.update((content_hash or "").encode("utf-8")); h.update(b"\x00")
+    return h.hexdigest(), len(members)
+
+
+def _verify_governance_provenance(out_root: Path) -> None:
+    """Fail if any domain's recorded governance closure disagrees with the assembled source.
+
+    A domain attestation may carry `imported_governance` (the governance it was compiled against).
+    Recompute that closure from the source domain present in this assembly; a mismatch means the
+    domain was compiled against different governance than is being assembled — stale, fail closed.
+    """
+    trust_root = out_root / "trust"
+    if not trust_root.is_dir():
+        return
+    for att_path in sorted(trust_root.glob("*/structure_attestation.json")):
+        att = _read_json(att_path)
+        recorded = att.get("imported_governance")
+        if not recorded:
+            continue
+        source = recorded.get("import_domain", "")
+        expected = recorded.get("governance_closure_hash", "")
+        actual, count = _recompute_governance_closure(out_root, source)
+        if actual != expected:
+            raise AssemblyError(
+                f"[{att.get('structure_id')}] governance provenance mismatch: attestation records "
+                f"closure {expected[:16]}… over '{source}' ({recorded.get('invariant_count')} invariants), "
+                f"but the assembled '{source}' surface yields {actual[:16]}… ({count}). "
+                f"The domain was compiled against different governance than is being assembled — recompile it."
+            )
 
 
 # ---------------------------------------------------------------------------
