@@ -3,7 +3,7 @@
 # PGC snapshot assembler runner — no PYTHONPATH / env fuss.
 #
 # Usage:
-#   ./assemble.sh                       # AUTO-DISCOVER: platform + every compiled reference workload
+#   ./assemble.sh                       # AUTO-DISCOVER: governance + every compiled workload
 #   ./assemble.sh --source A --out B    # explicit
 #
 # Env overrides:
@@ -23,14 +23,14 @@ if [[ $# -gt 0 ]]; then
   exec "$PYTHON" -m assembler.cli assemble "$@"
 fi
 
-# Auto-discover the compiled domains that make up the universe: the platform surface plus every
-# reference workload that has been compiled. Set PGC_SOURCE_ROOTS to override.
+# Auto-discover the compiled domains that make up the PNP: the software_governance surface plus
+# every conformance workload that has been compiled. Set PGC_SOURCE_ROOTS to override.
 ROOTS=()
 if [[ -n "${PGC_SOURCE_ROOTS:-}" ]]; then
   IFS=':' read -ra ROOTS <<< "$PGC_SOURCE_ROOTS"
 else
-  [[ -d "$UMBRELLA/platform/snapshot/compiled" ]] && ROOTS+=("$UMBRELLA/platform/snapshot/compiled")
-  for d in "$UMBRELLA"/platform/reference_workloads/*/snapshot/compiled; do
+  [[ -d "$UMBRELLA/software_governance/snapshot/compiled" ]] && ROOTS+=("$UMBRELLA/software_governance/snapshot/compiled")
+  for d in "$UMBRELLA"/conformance_workloads/workloads/*/snapshot/compiled; do
     [[ -d "$d" ]] && ROOTS+=("$d")
   done
 fi

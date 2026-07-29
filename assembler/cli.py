@@ -24,7 +24,7 @@ def _build_parser() -> argparse.ArgumentParser:
     a = subs.add_parser("assemble", help="Compose compiled projections into the assembled snapshot")
     a.add_argument(
         "--source", action="append", required=True, metavar="COMPILED_ROOT",
-        help="A compiler compiled/ root (repeatable). e.g. .../platform/snapshot/compiled",
+        help="A compiler compiled/ root (repeatable). e.g. .../software_governance/snapshot/compiled",
     )
     a.add_argument(
         "--out", required=True, metavar="SNAPSHOT_DIR",
