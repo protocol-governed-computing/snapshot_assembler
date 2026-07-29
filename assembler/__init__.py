@@ -3,5 +3,5 @@
 Contract: pgc_charter/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
 """
 
-ASSEMBLER_VERSION = "0.1.0"
+ASSEMBLER_VERSION = "1.0.0"     # MUST match pyproject.toml [project].version
 MANIFEST_VERSION = "v0"
