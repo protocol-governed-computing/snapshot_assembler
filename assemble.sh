@@ -33,6 +33,9 @@ else
   for d in "$UMBRELLA"/conformance_workloads/workloads/*/snapshot/compiled; do
     [[ -d "$d" ]] && ROOTS+=("$d")
   done
+  for d in "$UMBRELLA"/business_domains/*/snapshot/compiled; do
+    [[ -d "$d" ]] && ROOTS+=("$d")
+  done
 fi
 
 if [[ ${#ROOTS[@]} -eq 0 ]]; then
