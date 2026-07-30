@@ -1,6 +1,6 @@
 """PGC Snapshot Assembler — composes compiled projections into a manifest-pinned snapshot.
 
-Contract: pgc_charter/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
+Contract: standards/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
 """
 
 ASSEMBLER_VERSION = "1.0.0"     # MUST match pyproject.toml [project].version

@@ -6,7 +6,7 @@ Composes each domain's compiled projections (from the protocol compiler) into on
 snapshot** with a content-derived, **manifest-pinned identity**. The runtime consumes only the
 assembled snapshot — never an individual repo's compiled layout.
 
-> Contract: `pgc_charter/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md`
+> Contract: `standards/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md`
 
 ```
 repos → protocol_compiler → each repo's compiled/ projections
