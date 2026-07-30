@@ -321,14 +321,24 @@ _DOMAIN_INSTANTIATED = frozenset({"WF", "CC", "CS", "CT", "RB", "AC", "IN", "EV"
 
 
 def _recompute_governance_closure(out_root: Path, source_domain: str) -> tuple[str, int]:
-    """Recompute the governance-closure hash from an assembled domain's canonical invariants.
+    """Recompute the normative-closure hash from an assembled domain's canonical governance.
 
-    Mirrors the compiler's closure exactly (fqdn + content_hash of each domain-applicable,
-    non-surface-scoped invariant, sorted). Drift between this and the compiler is caught by the
-    stage-5 mutation test, which asserts the two agree on an unchanged closure.
+    Mirrors the compiler's closure exactly — see `s1_extract._inject_imported_governance`, whose
+    `closure_sources` this must track member-for-member:
+
+      * invariants — domain-applicable (applies_to_kinds intersects the instantiated set) and not
+        surface-scoped
+      * vocabulary — all of it, unfiltered: a vocabulary has no subject to intersect, and it is
+        the language the domain is written in
+
+    Drift between this and the compiler is caught by the stage-5 mutation test, which asserts the
+    two agree on an unchanged closure — and by assembly itself, which fails closed on a count or
+    hash mismatch rather than assembling a domain checked against different governance.
     """
-    inv_dir = out_root / "canonical" / source_domain / "invariants"
+    canonical = out_root / "canonical" / source_domain
     members: list[tuple[str, str]] = []
+
+    inv_dir = canonical / "invariants"
     if inv_dir.is_dir():
         for path in inv_dir.glob("*.json"):
             raw = _read_json(path)
@@ -339,6 +349,13 @@ def _recompute_governance_closure(out_root: Path, source_domain: str) -> tuple[s
             if (proj.get("scope", {}) or {}).get("applies_to"):
                 continue  # surface-specific — not generically imported
             members.append((raw.get("fqdn_id", ""), raw.get("content_hash", "")))
+
+    vocab_dir = canonical / "vocabulary"
+    if vocab_dir.is_dir():
+        for path in vocab_dir.glob("*.json"):
+            raw = _read_json(path)
+            members.append((raw.get("fqdn_id", ""), raw.get("content_hash", "")))
+
     members.sort()
     h = hashlib.sha256()
     for fqdn, content_hash in members:
@@ -368,7 +385,7 @@ def _verify_governance_provenance(out_root: Path) -> None:
         if actual != expected:
             raise AssemblyError(
                 f"[{att.get('structure_id')}] governance provenance mismatch: attestation records "
-                f"closure {expected[:16]}… over '{source}' ({recorded.get('invariant_count')} invariants), "
+                f"closure {expected[:16]}… over '{source}' ({recorded.get('closure_member_count')} members), "
                 f"but the assembled '{source}' surface yields {actual[:16]}… ({count}). "
                 f"The domain was compiled against different governance than is being assembled — recompile it."
             )
