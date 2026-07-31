@@ -48,8 +48,18 @@ CONFORMANCE_VERSION = "v0"
 # SCHEMA_INVARIANT_V0 plus one entry here — never a special case inside an evaluator.
 _CARDINALITY = {
     "exactly_one": lambda n: n == 1,
+    "at_least_one": lambda n: n >= 1,
     "at_most_one": lambda n: n <= 1,
     "none": lambda n: n == 0,
+}
+
+# What each rule requires, phrased for a diagnostic. A rule whose violation message described a
+# different rule would send a reader looking for the wrong defect.
+_REQUIREMENT = {
+    "exactly_one": "exactly one is required",
+    "at_least_one": "at least one is required",
+    "at_most_one": "at most one may be present",
+    "none": "none may be present",
 }
 
 
@@ -109,6 +119,24 @@ def _composition_rules(artifacts: list[dict]) -> list[tuple[str, dict]]:
 # Evaluation
 # ---------------------------------------------------------------------------
 
+def _declared(frontmatter: dict, path: str) -> Any:
+    """Read a declaration field by dotted path — `status`, or `handler.kind`.
+
+    A generalization of exact-match, not a special case: a single-segment path is the flat lookup
+    it always was. Nested declarations are ordinary structure in an artifact, and a selector that
+    could only reach the top level would force rules to be phrased against naming conventions
+    instead of against what an artifact actually declares.
+
+    A path that does not resolve yields None, which matches nothing — absence is not equality.
+    """
+    node: Any = frontmatter
+    for segment in path.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(segment)
+    return node
+
+
 def _matches(artifact: dict, selector: dict) -> bool:
     """All declared selector fields must match. Unknown fields are a hard failure, not a pass."""
     for field, expected in selector.items():
@@ -124,7 +152,7 @@ def _matches(artifact: dict, selector: dict) -> bool:
         elif field == "where":
             fm = artifact.get("frontmatter", {}) or {}
             for key, value in expected.items():
-                if fm.get(key) != value:
+                if _declared(fm, key) != value:
                     return False
         else:
             raise ConformanceError(
@@ -154,7 +182,7 @@ def _evaluate(invariant: str, check: dict, artifacts: list[dict]) -> Finding:
         message = f"{rule}: found {len(matched)} {subject}"
     elif len(matched) == 0:
         message = (f"{rule} violated: no {subject} found in the composed snapshot. "
-                   f"The composition declares none; exactly one is required.")
+                   f"The composition declares none; {_REQUIREMENT[rule]}.")
     else:
         plural = subject if subject.endswith("s") else f"{subject}s"
         message = (f"{rule} violated: {len(matched)} competing {plural} in the composed snapshot "

@@ -29,7 +29,7 @@ classifiers = [
 ]
 
 [project.scripts]
-pgc_assemble = "assembler.cli:main"
+snapshot_assembler = "assembler.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

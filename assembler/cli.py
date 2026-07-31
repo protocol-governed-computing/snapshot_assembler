@@ -25,7 +25,7 @@ from assembler import conformance, core
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="assembler", description="PGC snapshot assembler")
+    p = argparse.ArgumentParser(prog="snapshot_assembler", description="PGC snapshot assembler")
     subs = p.add_subparsers(dest="command", required=True)
 
     a = subs.add_parser("assemble", help="Compose compiled projections into the assembled snapshot")
