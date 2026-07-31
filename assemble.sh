@@ -23,8 +23,10 @@ if [[ $# -gt 0 ]]; then
   exec "$PYTHON" -m assembler.cli assemble "$@"
 fi
 
-# Auto-discover the compiled domains that make up the PNP: the software_governance surface plus
-# every conformance workload that has been compiled. Set PGC_SOURCE_ROOTS to override.
+# Auto-discover the compiled domains that make up the PNP: the software_governance surface, every
+# compiled conformance workload, every compiled business domain, and every compiled TOOL domain.
+# A tool domain declares capabilities ABOUT a snapshot rather than within one; it composes exactly
+# like any other domain. Set PGC_SOURCE_ROOTS to override.
 ROOTS=()
 if [[ -n "${PGC_SOURCE_ROOTS:-}" ]]; then
   IFS=':' read -ra ROOTS <<< "$PGC_SOURCE_ROOTS"
@@ -36,6 +38,8 @@ else
   for d in "$UMBRELLA"/business_domains/*/snapshot/compiled; do
     [[ -d "$d" ]] && ROOTS+=("$d")
   done
+  # Tool domains — repo-rooted rather than nested, one per tool.
+  [[ -d "$UMBRELLA/snapshot_inspector/snapshot/compiled" ]] && ROOTS+=("$UMBRELLA/snapshot_inspector/snapshot/compiled")
 fi
 
 if [[ ${#ROOTS[@]} -eq 0 ]]; then

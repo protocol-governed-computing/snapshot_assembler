@@ -1,7 +1,7 @@
 """
 indexes.py — cross-domain query indexes over the assembled snapshot.
 
-Two inspection indexes, built AFTER composition (the assembler is the only point with the full
+Three inspection indexes, built AFTER composition (the assembler is the only point with the full
 federated view of all domains — the PGC successor to RI-0's cross-structure `build` aggregation):
 
   * artifact_index/index.json — FQDN → domain / kind / owner_subdomain / canonical_path /
@@ -9,6 +9,13 @@ federated view of all domains — the PGC successor to RI-0's cross-structure `b
   * kind_index/index.json     — rich by-kind cross-reference (workflows / CCs / CTs / CSs / intents /
                                 runtime_bindings / actors / events + cross-refs + vocabulary +
                                 domain groupings). The si/tooling query database.
+  * store_index/index.json    — store → owning storage STRUCTURE, declared path, and binding
+                                surface (RB + CS + workflows + consumer CCs).
+
+The assembler produces an INSPECTABLE snapshot, not merely an executable one: the compiler owns
+the correctness of one domain, the assembler the correctness and indexing of the composition, and
+`snapshot_inspector` the read-only query interface over it. An index is a composition-level fact —
+no single domain build can compute one — which is why all three live here and none in the compiler.
 
 Re-emission only: every fact is read from materialized projections in the consolidated snapshot
 (canonical/<domain>, vocabulary/<domain>, evidence/<domain>). Zero re-derivation, deterministic
@@ -61,17 +68,20 @@ def _load_membership(out_root: Path) -> dict[str, dict[str, str]]:
 
 
 def _load_evidence_edges(out_root: Path) -> list[dict]:
-    """All edges from every evidence/<domain>/evidence_graph.json (best-effort)."""
+    """All semantic edges from every evidence/<domain>/evidence.json.
+
+    `evidence.json` carries the SEMANTIC graph (WF_BINDS_RB, WF_CONTAINS_NODE, CC_BINDS_CS,
+    NODE_NEXT, …), keyed by FQDN. Its sibling `evidence_graph.json` is the COMPILE TRACE
+    (STAGE_SEQUENCE / CAUSALITY, keyed by event id) and holds none of those kinds — reading it
+    here yielded zero matches and left every consumer's cross-reference silently empty.
+    """
     evidence = out_root / "evidence"
     edges: list[dict] = []
     if not evidence.is_dir():
         return edges
-    for eg in sorted(evidence.rglob("evidence_graph.json")):
-        try:
-            data = json.loads(eg.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        edges.extend(data.get("edges", []) if isinstance(data, dict) else [])
+    for eg in sorted(evidence.glob("*/evidence.json")):
+        data = json.loads(eg.read_text(encoding="utf-8"))
+        edges.extend(data.get("edges", []))
     return edges
 
 
@@ -222,6 +232,134 @@ def build_kind_index(out_root: Path) -> dict[str, Any]:
         "domains": {d: sorted(v) for d, v in sorted(domains.items())},
         "subdomains": {s: sorted(v) for s, v in sorted(subdomains.items())},
     }
+
+
+# ---------------------------------------------------------------------------
+# store_index (storage ownership + binding surface)
+# ---------------------------------------------------------------------------
+
+_DATA_ROOT_TEMPLATE = "{{module_data_root}}/"
+
+
+def build_store_index(out_root: Path) -> dict[str, Any]:
+    """Materialize the store-ownership join the composed snapshot already declares in three places:
+
+        storage STRUCTURE artifacts  →  core.entity_stores (store name → data path)
+        RB artifacts                 →  core.bindings      (CS → policy path)
+        evidence.json                →  WF_BINDS_RB, WF_CONTAINS_NODE, CC_BINDS_CS
+
+    into: store → owning structure, declared path, binding surface (RB + CS + workflows +
+    consumer CCs). Re-emission of declared facts only; deterministic; no policing.
+    """
+    docs = _load_canonical(out_root)
+    stores = _declared_stores(docs)
+    rb_paths = _rb_store_paths(docs)
+
+    wf_binds_rb: dict[str, set] = {}
+    wf_contains: dict[str, set] = {}
+    cc_binds_cs: dict[str, set] = {}
+    for edge in _load_evidence_edges(out_root):
+        kind, src, tgt = edge.get("kind"), edge.get("source_fqdn"), edge.get("target_fqdn")
+        if not src or not tgt:
+            continue
+        if kind == "WF_BINDS_RB":
+            wf_binds_rb.setdefault(src, set()).add(tgt)
+        elif kind == "WF_CONTAINS_NODE":
+            wf_contains.setdefault(src, set()).add(tgt)
+        elif kind == "CC_BINDS_CS":
+            cc_binds_cs.setdefault(src, set()).add(tgt)
+
+    def bindings_for(path: str) -> list[dict[str, Any]]:
+        bindings: list[dict[str, Any]] = []
+        for (rb_fqdn, cs_fqdn), declared_path in sorted(rb_paths.items()):
+            if declared_path != path:
+                continue
+            workflows = sorted(wf for wf, rbs in wf_binds_rb.items() if rb_fqdn in rbs)
+            consumer_ccs = sorted({
+                cc
+                for wf in workflows
+                for cc in wf_contains.get(wf, set())
+                if cs_fqdn in cc_binds_cs.get(cc, set())
+            })
+            bindings.append({
+                "rb": rb_fqdn,
+                "cs": cs_fqdn,
+                "workflows": workflows,
+                "consumer_ccs": consumer_ccs,
+            })
+        return bindings
+
+    indexed = {
+        key: {
+            "store": store["store"],
+            "domain": store["domain"],
+            "declarations": [
+                {**declaration, "bindings": bindings_for(declaration["path"])}
+                for declaration in store["declarations"]
+            ],
+        }
+        for key, store in stores.items()
+    }
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_by": "snapshot_assembler",
+        "store_count": len(indexed),
+        "stores": dict(sorted(indexed.items())),
+    }
+
+
+def _declared_stores(docs: dict[str, dict]) -> dict[str, dict[str, Any]]:
+    """Stores declared via core.entity_stores in storage STRUCTUREs, keyed '<domain>::<STORE>'.
+
+    A store name may be declared by more than one storage STRUCTURE in a domain — with the same
+    path (a shared store) or different paths (per-subdomain stores sharing a name). Each
+    declaration is recorded as the protocol states it: no merging, no policing.
+    """
+    stores: dict[str, dict[str, Any]] = {}
+    for fqdn, doc in docs.items():
+        if doc.get("artifact_type") != "STRUCTURE":
+            continue
+        core = doc.get("frontmatter", {}).get("core", {})
+        entity_stores = core.get("entity_stores")
+        if not entity_stores:
+            continue
+        domain = core.get("domain") or fqdn.split("::", 1)[0]
+        for store_name in sorted(entity_stores):
+            declared = entity_stores[store_name]
+            entry = stores.setdefault(
+                f"{domain}::{store_name}",
+                {"store": store_name, "domain": domain, "declarations": []},
+            )
+            entry["declarations"].append({
+                "path": declared.get("path", ""),
+                "description": declared.get("description", ""),
+                "declared_by": fqdn,
+            })
+    for entry in stores.values():
+        entry["declarations"].sort(key=lambda d: (d["path"], d["declared_by"]))
+    return stores
+
+
+def _rb_store_paths(docs: dict[str, dict]) -> dict[tuple[str, str], str]:
+    """(RB fqdn, CS fqdn) → declared data path, with the data-root template prefix stripped.
+
+    A binding whose policy declares no path binds no store (CS_MUTABLE_JSON_V0 under
+    workload::RB_COLLATZ_V0 is the standing example) and contributes nothing to the join.
+    """
+    paths: dict[tuple[str, str], str] = {}
+    for fqdn, doc in docs.items():
+        if doc.get("artifact_type") != "RB":
+            continue
+        bindings = doc.get("frontmatter", {}).get("core", {}).get("bindings", {})
+        for cs_fqdn in sorted(bindings):
+            declared_path = ((bindings[cs_fqdn].get("policy") or {}).get("path"))
+            if not declared_path:
+                continue
+            if declared_path.startswith(_DATA_ROOT_TEMPLATE):
+                declared_path = declared_path[len(_DATA_ROOT_TEMPLATE):]
+            paths[(fqdn, cs_fqdn)] = declared_path
+    return paths
 
 
 def write_index(out_root: Path, rel_path: str, content: dict[str, Any]) -> Path:

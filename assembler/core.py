@@ -286,9 +286,15 @@ def assemble(source_roots: list[Path], out_root: Path) -> dict[str, Any]:
                 shutil.copytree(src_flat, out_root / kind / inp.domain, ignore=_ignore)
 
     # --- cross-domain query indexes over the composed snapshot (inspection; not identity) ---
-    from assembler.indexes import build_artifact_index, build_kind_index, write_index
+    from assembler.indexes import (
+        build_artifact_index,
+        build_kind_index,
+        build_store_index,
+        write_index,
+    )
     write_index(out_root, "artifact_index/index.json", build_artifact_index(out_root))
     write_index(out_root, "kind_index/index.json", build_kind_index(out_root))
+    write_index(out_root, "store_index/index.json", build_store_index(out_root))
 
     # --- governance provenance: a domain must have been compiled against the governance it claims ---
     _verify_governance_provenance(out_root)
