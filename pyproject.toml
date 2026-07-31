@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snapshot_assembler"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Protocol-Governed Computing — snapshot assembler: composes compiled projections into a manifest-pinned executable snapshot (import package: assembler)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,3 +34,6 @@ pgc_assemble = "assembler.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["assembler*"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}

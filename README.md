@@ -6,7 +6,7 @@ Composes each domain's compiled projections (from the protocol compiler) into on
 snapshot** with a content-derived, **manifest-pinned identity**. The runtime consumes only the
 assembled snapshot — never an individual repo's compiled layout.
 
-> Contract: `pgc_charter/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md`
+> Contract: `standards/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md`
 
 ```
 repos → protocol_compiler → each repo's compiled/ projections
@@ -22,7 +22,7 @@ repos → protocol_compiler → each repo's compiled/ projections
 ./assemble.sh
 
 # explicit / multi-source (future domains)
-./assemble.sh --source /abs/platform/snapshot/compiled --out /abs/protocol-governed-computing/snapshot
+./assemble.sh --source /abs/software_governance/snapshot/compiled --out /abs/protocol-governed-computing/snapshot
 
 # module form
 PYTHONPATH=. python -m assembler.cli assemble --source <compiled_root> --out <snapshot_dir>

@@ -5,10 +5,10 @@ Two inspection indexes, built AFTER composition (the assembler is the only point
 federated view of all domains — the PGC successor to RI-0's cross-structure `build` aggregation):
 
   * artifact_index/index.json — FQDN → domain / kind / owner_subdomain / canonical_path /
-                                evidence_paths / per-domain addresses. Consumed by `pi`.
-  * pps/index.json            — rich by-kind cross-reference (workflows / CCs / CTs / CSs / intents /
+                                evidence_paths / per-domain addresses. Consumed by `si`.
+  * kind_index/index.json     — rich by-kind cross-reference (workflows / CCs / CTs / CSs / intents /
                                 runtime_bindings / actors / events + cross-refs + vocabulary +
-                                domain groupings). The pi/tooling query database.
+                                domain groupings). The si/tooling query database.
 
 Re-emission only: every fact is read from materialized projections in the consolidated snapshot
 (canonical/<domain>, vocabulary/<domain>, evidence/<domain>). Zero re-derivation, deterministic
@@ -120,10 +120,10 @@ def build_artifact_index(out_root: Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# pps (pi query database)
+# kind_index (si query database)
 # ---------------------------------------------------------------------------
 
-def build_pps_index(out_root: Path) -> dict[str, Any]:
+def build_kind_index(out_root: Path) -> dict[str, Any]:
     docs = _load_canonical(out_root)
     edges = _load_evidence_edges(out_root)
 
