@@ -40,6 +40,7 @@ else
   done
   # Tool domains — repo-rooted rather than nested, one per tool.
   [[ -d "$UMBRELLA/snapshot_inspector/snapshot/compiled" ]] && ROOTS+=("$UMBRELLA/snapshot_inspector/snapshot/compiled")
+  [[ -d "$UMBRELLA/transformation_compiler/snapshot/compiled" ]] && ROOTS+=("$UMBRELLA/transformation_compiler/snapshot/compiled")
 fi
 
 if [[ ${#ROOTS[@]} -eq 0 ]]; then
