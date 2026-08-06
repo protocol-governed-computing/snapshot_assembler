@@ -82,6 +82,17 @@ def _read_json(path: Path) -> dict:
         return json.load(f)
 
 
+def _canonical_meta_path(root: Path, domain: str) -> Path:
+    """`canonical/metadata.json`, in either source shape.
+
+    The compiler emits canonical flat (`canonical/…` by artifact type) while tokenized, vocabulary
+    and trust are domain-scoped; assembly re-homes canonical under `canonical/<domain>`. Both shapes
+    are read here so the same hash can be lifted before and verified after assembly.
+    """
+    scoped = root / "canonical" / domain / "metadata.json"
+    return scoped if scoped.exists() else root / "canonical" / "metadata.json"
+
+
 def _domain_identity(inp: DomainInput) -> dict[str, Any]:
     """
     Lift the domain's identity from compiler-emitted metadata and cross-check it.
@@ -93,14 +104,17 @@ def _domain_identity(inp: DomainInput) -> dict[str, Any]:
     tok_meta = _read_json(root / "tokenized"  / inp.domain / "metadata.json")
     voc_meta = _read_json(root / "vocabulary" / inp.domain / "metadata.json")
     trust    = _read_json(root / "trust"      / inp.domain / "structure_attestation.json")
+    # Canonical is emitted flat by the compiler; every other projection is domain-scoped.
+    can_meta = _read_json(_canonical_meta_path(root, inp.domain))
 
     tok_hash = tok_meta.get("projection_hash", "")
     voc_hash = voc_meta.get("projection_hash", "")
     att_hash = trust.get("attestation_hash", "")
+    can_hash = can_meta.get("projection_hash", "")
     graph_hash = tok_meta.get("graph_address_hash", "")
 
     # --- cross-check compiler's own statements (no invention, just verification) ---
-    if not (tok_hash and voc_hash and att_hash):
+    if not (tok_hash and voc_hash and att_hash and can_hash):
         raise AssemblyError(f"[{inp.domain}] empty projection/attestation hash in compiled input.")
     if trust.get("tokenized_projection_hash") != tok_hash:
         raise AssemblyError(
@@ -120,6 +134,7 @@ def _domain_identity(inp: DomainInput) -> dict[str, Any]:
         "projections": {
             "tokenized":  {"path": f"tokenized/{inp.domain}",  "projection_hash": tok_hash},
             "vocabulary": {"path": f"vocabulary/{inp.domain}", "projection_hash": voc_hash},
+            "canonical":  {"path": f"canonical/{inp.domain}",  "projection_hash": can_hash},
             "trust":      {"path": f"trust/{inp.domain}",
                            "attestation_hash": att_hash,
                            "tokenized_projection_hash": tok_hash},
@@ -136,14 +151,22 @@ def _identity_view(domains: list[dict]) -> list[dict]:
     The identity view of domains[] — the ONLY input to the composite hash.
 
     Per contract: (domain, tokenized.projection_hash, vocabulary.projection_hash,
-    trust.attestation_hash, graph_address_hash), domains sorted by name. Excludes
-    provenance, timestamps, and file paths.
+    canonical.projection_hash, trust.attestation_hash, graph_address_hash), domains sorted
+    by name. Excludes provenance, timestamps, and file paths.
+
+    `canonical` is here because the other four are all graph-derived, and STRUCTURE artifacts
+    never enter the semantic graph — they are read as build configuration and materialized. Without
+    canonical, a STRUCTURE artifact could change inside a sealed snapshot while the identity stayed
+    byte-identical and every integrity check still passed. STRUCTURE is the configuration authority
+    for the whole system, so that is the one class of artifact the identity could least afford to
+    miss. The hash is the compiler's own statement, lifted verbatim like the rest.
     """
     view = [
         {
             "domain": d["domain"],
             "tokenized_projection_hash":  d["projections"]["tokenized"]["projection_hash"],
             "vocabulary_projection_hash": d["projections"]["vocabulary"]["projection_hash"],
+            "canonical_projection_hash":  d["projections"]["canonical"]["projection_hash"],
             "attestation_hash":           d["projections"]["trust"]["attestation_hash"],
             "graph_address_hash":         d["graph_address_hash"],
         }
@@ -424,13 +447,17 @@ def verify_snapshot(out_root: Path) -> dict[str, Any]:
         tok_meta = _read_json(out_root / "tokenized"  / dom / "metadata.json")
         voc_meta = _read_json(out_root / "vocabulary" / dom / "metadata.json")
         trust    = _read_json(out_root / "trust"      / dom / "structure_attestation.json")
+        can_meta = _read_json(_canonical_meta_path(out_root, dom))
         man_tok = d["projections"]["tokenized"]["projection_hash"]
         man_voc = d["projections"]["vocabulary"]["projection_hash"]
+        man_can = d["projections"]["canonical"]["projection_hash"]
         if tok_meta.get("projection_hash") != man_tok:
             raise AssemblyError(f"[{dom}] on-disk tokenized hash != manifest.")
         if trust.get("tokenized_projection_hash") != man_tok:
             raise AssemblyError(f"[{dom}] trust tokenized hash != manifest.")
         if voc_meta.get("projection_hash") != man_voc:
             raise AssemblyError(f"[{dom}] on-disk vocabulary hash != manifest.")
+        if can_meta.get("projection_hash") != man_can:
+            raise AssemblyError(f"[{dom}] on-disk canonical hash != manifest.")
 
     return manifest

@@ -5,3 +5,6 @@ __pycache__/
 build/
 dist/
 .venv/
+.idea/
+.vscode/
+CLAUDE.md
