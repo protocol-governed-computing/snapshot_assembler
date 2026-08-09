@@ -424,6 +424,43 @@ def _verify_governance_provenance(out_root: Path) -> None:
 # Verify — the boot-time root-of-trust check, reusable by the runtime
 # ---------------------------------------------------------------------------
 
+def _verify_copies_agree(out_root: Path) -> None:
+    """Every copy of one artifact identity in the composition must be identical.
+
+    A platform artifact is compiled into each domain's own output and the assembler collects them
+    all, so one identity exists in the snapshot N times — `capability_side_effects::CS_MUTABLE_JSON_V0`
+    exists five times today. Nothing checked that the copies agreed, and they can disagree easily:
+    editing a governance artifact and recompiling one domain leaves every other domain carrying the
+    previous version. That composition assembled, reported conformance PASSED over 376 artifacts and
+    round-trip verified OK, while the published capability surface answered from a stale copy.
+
+    Compared by content_hash, which the compiler already writes per artifact.
+    """
+    seen: dict[str, dict[str, list[str]]] = {}
+    for path in sorted((out_root / "canonical").glob("*/*/*.json")):
+        if path.name == "metadata.json":
+            continue
+        doc = _read_json(path)
+        fqdn = doc.get("fqdn_id")
+        digest = doc.get("content_hash")
+        if not fqdn or not digest:
+            continue
+        seen.setdefault(fqdn, {}).setdefault(digest, []).append(str(path.relative_to(out_root)))
+
+    disagreeing = {fqdn: copies for fqdn, copies in seen.items() if len(copies) > 1}
+    if disagreeing:
+        detail = "; ".join(
+            f"{fqdn} differs across {sum(len(v) for v in copies.values())} copies "
+            f"({len(copies)} distinct versions: "
+            + ", ".join(sorted(paths[0] for paths in copies.values())) + ")"
+            for fqdn, copies in sorted(disagreeing.items())
+        )
+        raise AssemblyError(
+            f"composition holds disagreeing copies of {len(disagreeing)} artifact identity(ies) — "
+            f"recompile every domain after a governance edit: {detail}"
+        )
+
+
 def verify_snapshot(out_root: Path) -> dict[str, Any]:
     """
     Verify an assembled snapshot against its manifest (the root of trust).
@@ -434,6 +471,8 @@ def verify_snapshot(out_root: Path) -> dict[str, Any]:
     """
     manifest = _read_json(out_root / "manifest.json")
     domains = manifest.get("domains", [])
+
+    _verify_copies_agree(out_root)
 
     recomputed = compute_composite_hash(domains)
     if recomputed != manifest.get("composite_hash"):

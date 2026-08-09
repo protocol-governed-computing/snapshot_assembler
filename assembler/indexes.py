@@ -254,6 +254,7 @@ def build_store_index(out_root: Path) -> dict[str, Any]:
     docs = _load_canonical(out_root)
     stores = _declared_stores(docs)
     rb_paths = _rb_store_paths(docs)
+    cc_stores = _cc_declared_stores(docs)
 
     wf_binds_rb: dict[str, set] = {}
     wf_contains: dict[str, set] = {}
@@ -269,18 +270,32 @@ def build_store_index(out_root: Path) -> dict[str, Any]:
         elif kind == "CC_BINDS_CS":
             cc_binds_cs.setdefault(src, set()).add(tgt)
 
-    def bindings_for(path: str) -> list[dict[str, Any]]:
+    def bindings_for(path: str, store_name: str) -> list[dict[str, Any]]:
         bindings: list[dict[str, Any]] = []
-        for (rb_fqdn, cs_fqdn), declared_path in sorted(rb_paths.items()):
-            if declared_path != path:
+        for (rb_fqdn, cs_fqdn), declared_paths in sorted(rb_paths.items()):
+            if path not in declared_paths:
                 continue
-            workflows = sorted(wf for wf, rbs in wf_binds_rb.items() if rb_fqdn in rbs)
-            consumer_ccs = sorted({
-                cc
-                for wf in workflows
-                for cc in wf_contains.get(wf, set())
-                if cs_fqdn in cc_binds_cs.get(cc, set())
-            })
+            # Which contracts consume *this* store, not every store the binding reaches. A binding
+            # declared through a storage structure reaches every path that structure owns, so
+            # asking the binding alone answers "which contracts touch this domain's storage" and
+            # reports identical consumers for three different stores. A contract names the store
+            # each of its steps uses, and that is the fact being asked for.
+            # Scoped to what this binding actually reaches: the workflows bound to this RB,
+            # the contracts they contain, and of those the ones binding this capability.
+            rb_workflows = {wf for wf, rbs in wf_binds_rb.items() if rb_fqdn in rbs}
+            candidates = {cc for wf in rb_workflows
+                          for cc in wf_contains.get(wf, set())
+                          if cs_fqdn in cc_binds_cs.get(cc, set())}
+            if len(declared_paths) > 1:
+                # The binding reaches every store its structure owns, so it cannot say which one a
+                # contract used; the contract's own step declaration can. Filtering only here keeps
+                # a binding naming one concrete path — where the path *is* the store — answering for
+                # contracts that never needed to name it.
+                candidates = {cc for cc in candidates
+                              if store_name in cc_stores.get(cc, set())}
+            consumer_ccs = sorted(candidates)
+            workflows = sorted({wf for wf in rb_workflows
+                                if wf_contains.get(wf, set()) & candidates})
             bindings.append({
                 "rb": rb_fqdn,
                 "cs": cs_fqdn,
@@ -294,7 +309,7 @@ def build_store_index(out_root: Path) -> dict[str, Any]:
             "store": store["store"],
             "domain": store["domain"],
             "declarations": [
-                {**declaration, "bindings": bindings_for(declaration["path"])}
+                {**declaration, "bindings": bindings_for(declaration["path"], store["store"])}
                 for declaration in store["declarations"]
             ],
         }
@@ -341,24 +356,75 @@ def _declared_stores(docs: dict[str, dict]) -> dict[str, dict[str, Any]]:
     return stores
 
 
-def _rb_store_paths(docs: dict[str, dict]) -> dict[tuple[str, str], str]:
-    """(RB fqdn, CS fqdn) → declared data path, with the data-root template prefix stripped.
+def _cc_declared_stores(docs: dict[str, dict]) -> dict[str, set[str]]:
+    """CC fqdn → the store names its pipeline steps declare.
 
-    A binding whose policy declares no path binds no store (CS_MUTABLE_JSON_V0 under
-    workload::RB_COLLATZ_V0 is the standing example) and contributes nothing to the join.
+    A contract states the store each side-effect step reaches. Nothing else in the composition
+    records which store a contract uses: the runtime binding names a capability and a structure,
+    and the evidence graph records that a contract binds a capability — neither says which of the
+    structure's stores the contract writes.
     """
-    paths: dict[tuple[str, str], str] = {}
+    out: dict[str, set[str]] = {}
+    for fqdn, doc in docs.items():
+        if doc.get("artifact_type") != "CC":
+            continue
+        pipeline = doc.get("frontmatter", {}).get("core", {}).get("pipeline") or []
+        named = {step.get("store") for step in pipeline
+                 if isinstance(step, dict) and step.get("store")}
+        if named:
+            out[fqdn] = named
+    return out
+
+
+def _rb_store_paths(docs: dict[str, dict]) -> dict[tuple[str, str], set[str]]:
+    """(RB fqdn, CS fqdn) → the data paths that binding reaches.
+
+    A binding declares where its capability writes in one of two ways, and reading only the first
+    left this join blind to fourteen of the composition's fifteen stores:
+
+      policy.path       one concrete path, with the data-root template prefix stripped
+      policy.structure  a storage STRUCTURE, whose `entity_stores` declare every path it owns
+
+    The second is what every pipeline-authored domain uses, and the reference workload besides;
+    only `ai_governance` names paths in its policies. Resolving just the concrete form meant
+    `si.store.consumers` answered for that one domain and reported no consumer for every other
+    store in the composition — including stores three contracts demonstrably write.
+
+    A binding whose policy declares neither binds no store (CS_CLOCK_V0 under any RB is the
+    standing example) and contributes nothing to the join.
+    """
+    paths: dict[tuple[str, str], set[str]] = {}
     for fqdn, doc in docs.items():
         if doc.get("artifact_type") != "RB":
             continue
-        bindings = doc.get("frontmatter", {}).get("core", {}).get("bindings", {})
+        core = doc.get("frontmatter", {}).get("core", {})
+        bindings = core.get("bindings", {})
         for cs_fqdn in sorted(bindings):
-            declared_path = ((bindings[cs_fqdn].get("policy") or {}).get("path"))
-            if not declared_path:
-                continue
-            if declared_path.startswith(_DATA_ROOT_TEMPLATE):
-                declared_path = declared_path[len(_DATA_ROOT_TEMPLATE):]
-            paths[(fqdn, cs_fqdn)] = declared_path
+            policy = bindings[cs_fqdn].get("policy") or {}
+            declared: set[str] = set()
+
+            concrete = policy.get("path")
+            if concrete:
+                if concrete.startswith(_DATA_ROOT_TEMPLATE):
+                    concrete = concrete[len(_DATA_ROOT_TEMPLATE):]
+                declared.add(concrete)
+
+            # A binding may declare its structure, or lean on the one the runtime binding declares
+            # for all of them. Reading only the per-binding form left every store whose binding
+            # carries an empty policy unreachable, though the RB says plainly where it writes.
+            # A binding may declare its structure, or lean on the one the runtime binding declares
+            # for all of them — but only when it names no path of its own. A binding that names one
+            # concrete path has already said where it writes, and adding its structure's other
+            # paths on top would make an unambiguous binding look like it reached them all.
+            structure = policy.get("structure") or (None if declared else core.get("storage_structure"))
+            if structure:
+                entity_stores = ((docs.get(structure) or {})
+                                 .get("frontmatter", {}).get("core", {}).get("entity_stores") or {})
+                declared.update(store.get("path") for store in entity_stores.values()
+                                if isinstance(store, dict) and store.get("path"))
+
+            if declared:
+                paths[(fqdn, cs_fqdn)] = declared
     return paths
 
 
