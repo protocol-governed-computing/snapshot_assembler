@@ -6,7 +6,8 @@ Composes each domain's compiled projections (from the protocol compiler) into on
 snapshot** with a content-derived, **manifest-pinned identity**. The runtime consumes only the
 assembled snapshot — never an individual repo's compiled layout.
 
-> Contract: `standards/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md`
+> The assembly contract — what a compiled projection must look like for the assembler to
+> accept it — is governed by the standard, not by this repository.
 
 ```
 repos → protocol_compiler → each repo's compiled/ projections
