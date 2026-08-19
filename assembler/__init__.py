@@ -1,6 +1,6 @@
 """PGC Snapshot Assembler — composes compiled projections into a manifest-pinned snapshot.
 
-Contract: standards/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
+Contract: .github/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
 """
 
 from pathlib import Path
