@@ -1,8 +1,8 @@
 # Architecture — `snapshot_assembler`
 
-**Release 5.** This document is frozen for this release. It describes what this repository is, what
-it owns, and what it must never do. It is written to be read before any code, and assumes no prior
-familiarity with Protocol-Governed Computing.
+This document describes what this repository is, what it owns, and what it must never do. It is
+written to be read before any code, and assumes no prior familiarity with Protocol-Governed
+Computing.
 
 For the big picture — what PGC is and how the repositories compose — see
 **https://github.com/protocol-governed-computing**.
@@ -139,7 +139,21 @@ The indexes are not conveniences. They are what allow the composition to be *int
 than read — a governed system that cannot answer questions about itself is governed only in
 principle.
 
-## 7. Rules this repo enforces
+## 7. Layout
+
+```
+assemble.sh         assemble the compiled projections into a snapshot
+
+assembler/
+    core.py         composition, sealing, and the manifest-pinned identity
+    indexes.py      the indexes that make a snapshot interrogable
+    conformance.py  composition-level checks over the assembled result
+    cli.py          the `snapshot_assembler` console script
+
+scripts/testbed/    test_indexes.py — run explicitly, not pytest-collected
+```
+
+## 8. Rules this repo enforces
 
 1. **A snapshot is sealed at assembly and never modified afterwards.** Downstream consumers read; none writes.
 2. **Identity is derived from content**, never assigned, so two identical compositions have one identity.
@@ -149,7 +163,7 @@ principle.
 6. **Every domain declaring source must be compiled.** A missing domain is refused rather than
    silently assembled from stale output — the assembler names the command to run.
 
-## 8. How to know it works
+## 9. How to know it works
 
 ```bash
 ./assemble.sh
@@ -161,7 +175,7 @@ every build output, rebuild from committed source against the declared pinned in
 **same `snapshot_id`**. An identity that changes without a source change means something entered the
 build that nobody declared.
 
-## 9. Where the architecture is explained
+## 10. Where the architecture is explained
 
 This document describes *this repository*. The architecture it realizes is developed in the papers
 indexed at **https://github.com/protocol-governed-computing**:
