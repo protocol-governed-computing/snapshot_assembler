@@ -4,7 +4,7 @@ core.py — PGC snapshot assembly.
 Composes each domain's compiled projections (from the protocol compiler) into one
 executable snapshot + a content-derived, manifest-pinned identity.
 
-Contract: standards/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
+Contract: .github/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
 
 Invariants enforced here:
   * The assembler INVENTS no per-domain identity — every hash is lifted verbatim from
