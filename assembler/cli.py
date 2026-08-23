@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
     a.add_argument(
         "--out", required=True, metavar="SNAPSHOT_DIR",
         help="Assembled snapshot output dir (the product). e.g. .../protocol-governed-computing/snapshot",
+    )
+    a.add_argument(
+        "--profile", default=os.environ.get("PGC_SNAPSHOT_PROFILE", ""), metavar="PROFILE_IDENTITY",
+        help="The profile identity this snapshot claims (3b SN-5). Required; a snapshot that claims "
+             "none cannot have clause 4 of 3b §7 evaluated about it.",
     )
 
     v = subs.add_parser("verify", help="Verify an assembled snapshot against its manifest")
@@ -62,7 +68,7 @@ def main() -> None:
             if not s.is_dir():
                 _fatal(f"source root is not a directory: {s}")
         try:
-            manifest = core.assemble(source_roots, out_root)
+            manifest = core.assemble(source_roots, out_root, args.profile)
             core.verify_snapshot(out_root)  # round-trip self-check
         except core.AssemblyError as exc:
             _fatal(str(exc))

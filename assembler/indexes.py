@@ -85,20 +85,6 @@ def _load_evidence_edges(out_root: Path) -> list[dict]:
     return edges
 
 
-def _owner_subdomain(module_path: str | None) -> str | None:
-    """Owning subdomain declared by module_path (`<pkg>.registry.<subdomain>.<kind>`), else None."""
-    if not module_path:
-        return None
-    parts = module_path.split(".")
-    if len(parts) >= 4 and parts[1] == "registry" and not parts[2].startswith("FB_"):
-        return parts[2]
-    return None
-
-
-# ---------------------------------------------------------------------------
-# artifact_index
-# ---------------------------------------------------------------------------
-
 def build_artifact_index(out_root: Path) -> dict[str, Any]:
     docs = _load_canonical(out_root)
     membership = _load_membership(out_root)
@@ -116,7 +102,7 @@ def build_artifact_index(out_root: Path) -> dict[str, Any]:
         artifacts[fqdn] = {
             "domain": domain,
             "kind": raw.get("artifact_type"),
-            "owner_subdomain": _owner_subdomain(raw.get("module_path")),
+            "owner_subdomain": (raw.get("frontmatter") or {}).get("concern") or None,
             "canonical_path": raw["_canonical_path"],
             "evidence_paths": evidence_paths,
             "addresses": {s: scopes[s] for s in sorted(scopes)},

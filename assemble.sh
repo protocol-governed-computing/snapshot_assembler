@@ -9,6 +9,8 @@
 # Env overrides:
 #   PGC_SOURCE_ROOTS   colon-separated compiled/ roots (overrides auto-discovery)
 #   PGC_SNAPSHOT_OUT   assembled snapshot dir          (default: ../snapshot)
+#   PGC_SNAPSHOT_PROFILE  profile identity the snapshot claims (3b SN-5)
+#                         default: REFERENCE_PLATFORM_PROFILE_V1
 #   PYTHON             (default: python)
 #
 set -euo pipefail
@@ -94,4 +96,5 @@ for r in "${ROOTS[@]}"; do echo "    - $r"; done
 echo "  out     : $OUT"
 echo
 
-exec "$PYTHON" -m assembler.cli assemble "${SRC_ARGS[@]}" --out "$OUT"
+PROFILE="${PGC_SNAPSHOT_PROFILE:-REFERENCE_PLATFORM_PROFILE_V1}"
+exec "$PYTHON" -m assembler.cli assemble "${SRC_ARGS[@]}" --out "$OUT" --profile "$PROFILE"
