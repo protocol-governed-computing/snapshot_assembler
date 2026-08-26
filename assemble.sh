@@ -9,8 +9,12 @@
 # Env overrides:
 #   PGC_SOURCE_ROOTS   colon-separated compiled/ roots (overrides auto-discovery)
 #   PGC_SNAPSHOT_OUT   assembled snapshot dir          (default: ../snapshot)
-#   PGC_SNAPSHOT_PROFILE  profile identity the snapshot claims (3b SN-5)
-#                         default: REFERENCE_PLATFORM_PROFILE_V1
+#   PGC_SNAPSHOT_PROFILE  profile identity the snapshot claims (3b SN-5) — REQUIRED, no default.
+#                         `1b` §11: a genesis proposal MUST name the profile it claims, and the
+#                         profile is "supplied from outside the system being constituted". A default
+#                         would have the assembler supply the one condition genesis takes from
+#                         elsewhere. No profile is privileged (6a §11) and none is minimal by nature
+#                         (6a §8), so there is no floor to default to.
 #   PYTHON             (default: python)
 #
 set -euo pipefail
@@ -96,5 +100,8 @@ for r in "${ROOTS[@]}"; do echo "    - $r"; done
 echo "  out     : $OUT"
 echo
 
-PROFILE="${PGC_SNAPSHOT_PROFILE:-REFERENCE_PLATFORM_PROFILE_V1}"
+PROFILE="${PGC_SNAPSHOT_PROFILE:?a snapshot must NAME the profile it claims (1b §11, 3b SN-5).
+  Set PGC_SNAPSHOT_PROFILE=<PROFILE_IDENTITY>, or pass --profile explicitly.
+  There is no default: no profile is privileged (6a §11), and minimality is relative to a
+  profile (6a §8) — so there is no minimal platform to default to.}"
 exec "$PYTHON" -m assembler.cli assemble "${SRC_ARGS[@]}" --out "$OUT" --profile "$PROFILE"

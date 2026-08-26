@@ -143,6 +143,8 @@ principle.
 
 ```
 assemble.sh         assemble the compiled projections into a snapshot
+                    PGC_SNAPSHOT_PROFILE is required — a snapshot names the profile it
+                    claims (1b §11); there is no default (6a §8, §11)
 
 assembler/
     core.py         composition, sealing, and the manifest-pinned identity
@@ -166,7 +168,7 @@ scripts/testbed/    test_indexes.py — run explicitly, not pytest-collected
 ## 9. How to know it works
 
 ```bash
-./assemble.sh
+PGC_SNAPSHOT_PROFILE=REFERENCE_PLATFORM_PROFILE_V1 ./assemble.sh
 ```
 
 A successful run reports the domains composed, the resulting `snapshot_id`, round-trip verification,
