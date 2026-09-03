@@ -8,3 +8,7 @@ dist/
 .idea/
 .vscode/
 CLAUDE.md
+*.py[cod]
+
+# generated at build time from the repo-root VERSION — a build artifact
+assembler/VERSION

@@ -1,39 +1,47 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["setuptools>=77"]
+build-backend = "_build_hook"
+backend-path = ["."]
 
 [project]
-name = "snapshot_assembler"
-dynamic = ["version"]
-description = "Protocol-Governed Computing — snapshot assembler: composes compiled projections into a manifest-pinned executable snapshot (import package: assembler)"
+name = "pgc-assembler"
+version = "2.0.0"
+description = "PGC snapshot assembler — composes compiled projections into a manifest-pinned executable snapshot (import package: assembler)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-
-authors = [
-  { name = "Bhash Ganti aka Bachi" }
-]
-
-dependencies = []
+authors = [{ name = "Bhash Ganti", email = "bachipeachy@gmail.com" }]
 
 keywords = ["protocol-governed-computing", "pgc", "snapshot", "assembler", "manifest"]
 
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Operating System :: OS Independent"
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Build Tools",
 ]
+
+dependencies = []
 
 [project.scripts]
 snapshot_assembler = "assembler.cli:main"
+
+[project.urls]
+Homepage = "https://omnibachi.org/"
+Repository = "https://github.com/protocol-governed-computing/snapshot_assembler"
+Standard = "https://doi.org/10.5281/zenodo.22150616"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["assembler*"]
 
-[tool.setuptools.dynamic]
-version = {file = "VERSION"}
+[tool.setuptools.package-data]
+# VERSION has no extension, so it must be named explicitly.
+"*" = ["*.md", "*.yaml", "*.json", "VERSION"]

@@ -14,7 +14,13 @@ def _release() -> str:
     repo belongs to. `VERSION` is the sole declaration — pyproject derives it, and so does this.
     Never restate it as a literal; two statements of one fact is how they drift apart.
     """
-    return (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    # Source tree and editable installs: the repo-root VERSION is authoritative.
+    declared = Path(__file__).resolve().parent.parent / "VERSION"
+    if declared.is_file():
+        return declared.read_text(encoding="utf-8").strip()
+    # Installed wheel: no repo root. The ordinal is staged into the package at
+    # build time by _build_hook.py — a build artifact, not a second declaration.
+    return (Path(__file__).resolve().parent / "VERSION").read_text(encoding="utf-8").strip()
 
 
 ASSEMBLER_VERSION = _release()   # derived from VERSION — never edited here
