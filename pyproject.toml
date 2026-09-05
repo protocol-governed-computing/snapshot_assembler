@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "pgc-assembler"
-version = "2.0.0"
+version = "2.0.1"
 description = "PGC snapshot assembler — composes compiled projections into a manifest-pinned executable snapshot (import package: assembler)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,10 @@ classifiers = [
   "Topic :: Software Development :: Build Tools",
 ]
 
-dependencies = []
+# `_profile_declaration` parses the snapshot profile's YAML block, and it is reached from
+# `verify_snapshot` — the `verify` subcommand and the profile check inside assembly. A standalone
+# install without this raises ModuleNotFoundError there instead of refusing.
+dependencies = ["pyyaml"]
 
 [project.scripts]
 snapshot_assembler = "assembler.cli:main"
