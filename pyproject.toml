@@ -46,5 +46,6 @@ where = ["."]
 include = ["assembler*"]
 
 [tool.setuptools.package-data]
-# VERSION has no extension, so it must be named explicitly.
-"*" = ["*.md", "*.yaml", "*.json", "VERSION"]
+# VERSION has no extension, so it must be named explicitly. Scoped to the package
+# rather than "*" — see the note in protocol_compiler.
+"assembler" = ["VERSION"]

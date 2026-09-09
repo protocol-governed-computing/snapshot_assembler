@@ -4,7 +4,7 @@ core.py — PGC snapshot assembly.
 Composes each domain's compiled projections (from the protocol compiler) into one
 executable snapshot + a content-derived, manifest-pinned identity.
 
-Contract: snapshot_assembler/doc/SNAPSHOT_ASSEMBLY_CONTRACT.md
+Contract: snapshot_assembler/CONTRACT.md
 
 Invariants enforced here:
   * The assembler INVENTS no per-domain identity — every hash is lifted verbatim from
@@ -356,12 +356,6 @@ def verify_profile(out_root: Path, profile: str) -> list[str]:
         if fqdn not in present:
             unmet.append(f"required workload entry point absent: {fqdn}")
     return unmet
-
-
-def compute_composite_hash(domains: list[dict]) -> str:
-    """sha256 over canonical-JSON of the identity view. Deterministic; timestamp-free."""
-    canonical = json.dumps(_identity_view(domains), sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -753,6 +747,17 @@ def verify_snapshot(out_root: Path) -> dict[str, Any]:
         raise AssemblyError(
             f"identity failure: derived {derived[:16]}… from content, snapshot bears "
             f"{str(borne)[:16]}… (3b §7 clause 2, SN-2)."
+        )
+
+    # The manifest states its identity twice. Both statements are the claim, so both are evaluated:
+    # checking one and not the other let a manifest carry two contradictory identities and be
+    # accepted — measured, not hypothesised. A self-description that disagrees with itself is not a
+    # self-description.
+    borne_composite = manifest.get("composite_hash")
+    if borne_composite != derived:
+        raise AssemblyError(
+            f"identity failure: derived {derived[:16]}… from content, snapshot's composite_hash "
+            f"bears {str(borne_composite)[:16]}… (3b §7 clause 2, SN-2)."
         )
 
     # Copies of one identity across domains must agree (GC-12) — a composition obligation rather
