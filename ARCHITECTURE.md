@@ -168,7 +168,7 @@ scripts/testbed/    test_indexes.py — run explicitly, not pytest-collected
 ## 9. How to know it works
 
 ```bash
-PGC_SNAPSHOT_PROFILE=REFERENCE_PLATFORM_PROFILE_V1 ./assemble.sh
+PGC_SNAPSHOT_PROFILE=GOVERNANCE_SURFACE_PROFILE_V0 ./assemble.sh
 ```
 
 A successful run reports the domains composed, the resulting `snapshot_id`, round-trip verification,

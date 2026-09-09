@@ -13,7 +13,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from assembler.indexes import build_kind_index, build_store_index
+from assembler.indexes import build_artifact_index, build_kind_index, build_store_index
 
 PASS = 0
 FAIL = 0
@@ -121,12 +121,70 @@ def test_kind_index_reads_semantic_edges() -> None:
         check("kind_index_upstream", xrefs["cc_upstream"] == {"d::CC_PERSIST_V0": ["d::CC_FIRST_V0"]})
 
 
+def _republished_fixture(root: Path, consumer: str) -> None:
+    """One identity published twice: the platform's authoring copy and a consumer's binding.
+
+    The two differ exactly as the compiler emits them — `content_hash` and `frontmatter` identical,
+    the binding carrying no authored `content` and no `references`, under the consuming layer.
+    """
+    for domain, layer, content, refs in (
+        ("platform", "REUSABLE_SIDE_EFFECTS", "# CS_X_V0\n\n## 1. Intent\n", ["cse::CONSTITUTION_CSE_V0"]),
+        (consumer, consumer.upper(), "", []),
+    ):
+        _write(root, f"canonical/{domain}/capability_side_effects/cse__CS_X_V0.json", {
+            "fqdn_id": "cse::CS_X_V0",
+            "artifact_type": "CS",
+            "content": content,
+            "content_hash": "7f1c0914",     # identical on both — the binding carries a hash of
+            "references": refs,             # content it does not hold
+            "layer_code": layer,
+            "frontmatter": {"concern": "capability_side_effects"},
+        })
+
+
+def test_artifact_index_prefers_the_authoring_copy() -> None:
+    """An identity published twice resolves to the copy that carries authored content.
+
+    A domain consuming a platform capability carries it as an execution binding; both copies are
+    canonical, and only the authoring one answers `si.artifact.show`, which promises the artifact
+    "as authored".
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        ws = Path(tmp)
+        _republished_fixture(ws, "workload")
+        entry = build_artifact_index(ws)["artifacts"]["cse::CS_X_V0"]
+        check("artifact_index_resolves_to_authoring_copy",
+              entry["canonical_path"].startswith("canonical/platform/"),
+              f'got {entry["canonical_path"]}')
+
+
+def test_artifact_index_resolution_is_not_alphabetical() -> None:
+    """The same identity resolves the same way whatever the consuming domain is called.
+
+    Selection was last-write-wins over a sorted walk, so a consumer sorting after `platform`
+    (`workload`, `transformation`) won and one sorting before it (`blockchain`) lost. Resolution
+    tracked domain naming, and renaming a domain would silently change what an identity returns.
+    """
+    resolved = {}
+    for consumer in ("blockchain", "workload", "transformation"):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            _republished_fixture(ws, consumer)
+            resolved[consumer] = build_artifact_index(ws)["artifacts"]["cse::CS_X_V0"]["canonical_path"]
+    check("artifact_index_ignores_domain_name_order",
+          len(set(resolved.values())) == 1 and all(
+              p.startswith("canonical/platform/") for p in resolved.values()),
+          str(resolved))
+
+
 def main() -> None:
     for test in (
         test_store_index_join,
         test_store_index_pathless_binding,
         test_store_index_empty_snapshot,
         test_kind_index_reads_semantic_edges,
+        test_artifact_index_prefers_the_authoring_copy,
+        test_artifact_index_resolution_is_not_alphabetical,
     ):
         test()
     print(f"\nPASSED: {PASS}/{PASS + FAIL}")

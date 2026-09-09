@@ -35,8 +35,36 @@ SCHEMA_VERSION = "v0"
 # Shared readers over the consolidated snapshot
 # ---------------------------------------------------------------------------
 
+def _authoring_rank(doc: dict) -> int:
+    """How authoritative a canonical copy is for its identity. Higher wins.
+
+    One identity can be published by more than one domain. A domain that CONSUMES a platform
+    capability carries it as an execution binding — the compiler lifts the compiled node so the
+    capability is executable there, and the authoring stays platform-owned. Both copies are
+    canonical and both are legitimate; they are not interchangeable.
+
+    The binding copy is the authoring copy with the authored parts removed: `content_hash`,
+    `frontmatter` and the IR are identical, while `content` and `references` are empty and
+    `layer_code` names the consuming layer. So the copy that still carries authored content is the
+    authoring copy, and it is the one an identity must resolve to — `si.artifact.show` promises "the
+    published canonical artifact for an FQDN, as authored".
+
+    A binding copy also carries the `content_hash` of content it does not hold, which is the sharper
+    tell but not one to select on: a hash mismatch is a defect to report, not a discriminator.
+    """
+    return 1 if (doc.get("content") or "").strip() else 0
+
+
 def _load_canonical(out_root: Path) -> dict[str, dict]:
-    """fqdn → canonical artifact doc, across all domains (canonical/<domain>/<type>/*.json)."""
+    """fqdn → canonical artifact doc, across all domains (canonical/<domain>/<type>/*.json).
+
+    Where an identity is published more than once, the authoring copy wins (`_authoring_rank`).
+    Selecting by iteration order would resolve an identity by the alphabetical accident of its
+    consumer's domain name: `canonical/platform/` sorts before `canonical/workload/` and after
+    `canonical/blockchain/`, so last-write-wins returned the authoring copy for consumers named
+    early and the binding copy for consumers named late. Renaming a domain would then change what
+    an identity resolves to.
+    """
     canon = out_root / "canonical"
     docs: dict[str, dict] = {}
     if not canon.is_dir():
@@ -46,8 +74,12 @@ def _load_canonical(out_root: Path) -> dict[str, dict]:
             continue
         raw = json.loads(f.read_text(encoding="utf-8"))
         fqdn = raw.get("fqdn_id")
-        if fqdn and "::" in fqdn:
-            raw["_canonical_path"] = f.relative_to(out_root).as_posix()
+        if not fqdn or "::" not in fqdn:
+            continue
+        raw["_canonical_path"] = f.relative_to(out_root).as_posix()
+        held = docs.get(fqdn)
+        # Ties keep the first seen, so a sorted walk stays the tiebreak and the result is stable.
+        if held is None or _authoring_rank(raw) > _authoring_rank(held):
             docs[fqdn] = raw
     return docs
 
