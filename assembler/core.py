@@ -182,7 +182,13 @@ def _identity_view(domains: list[dict]) -> list[dict]:
 # it is a determination ABOUT the snapshot, in the sense `3b` §7 means, and evidence rather than
 # content. That it is written inside the tree is a placement defect recorded in Task D; excluding it
 # here is what makes the tree honest about what it sealed, not a carve-out to make a check pass.
-POST_SEAL = ("conformance/",)
+# A signature is the same shape as a conformance result and joins this set for the same reason:
+# it is over `snapshot_id`, so it cannot exist before the identity does, and it records who
+# vouches for what was sealed rather than forming part of it. The placement defect noted above
+# applies to it equally — it is written inside the tree and is not of it. That is an existing
+# defect extended to a second file, not a new class of one, and not a carve-out invented to
+# admit signing: a signature that were a constituent would change the identity it signs.
+POST_SEAL = ("conformance/", "signature.json")
 
 
 def _is_post_seal(rel: str) -> bool:

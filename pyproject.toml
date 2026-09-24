@@ -30,6 +30,13 @@ classifiers = [
 # install without this raises ModuleNotFoundError there instead of refusing.
 dependencies = ["pyyaml"]
 
+# Snapshot signing is a profile's selection, not a property of the core. A platform whose
+# profile requires authenticated snapshots installs this; one that does not should not
+# acquire a cryptography dependency because the capability exists elsewhere. Absent it,
+# assembler.signing refuses rather than degrading to an unsigned success.
+[project.optional-dependencies]
+signing = ["cryptography>=42"]
+
 [project.scripts]
 snapshot_assembler = "assembler.cli:main"
 
