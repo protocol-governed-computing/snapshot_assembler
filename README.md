@@ -15,8 +15,10 @@ repos → protocol_compiler → each repo's compiled/ projections
 ```
 
 The platform is an ordinary member of the composition — no singleton branch. The composition
-currently assembles **seven domains**: `platform`, `workload`, `inspection`, `transformation`,
-and the business domains `ai_governance`, `blockchain` and `book_library_mgmt`.
+currently assembles **eight domains**: `platform`, `workload`, `inspection`, `transformation`,
+and the business domains `ai_governance`, `blockchain`, `book_library_mgmt` and
+`causal_language_model`. A deliberately narrower composition is assembled by naming its roots in
+`PGC_SOURCE_ROOTS`.
 
 ## Install
 
