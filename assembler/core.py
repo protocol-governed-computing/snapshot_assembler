@@ -554,7 +554,7 @@ def assemble(source_roots: list[Path], out_root: Path, profile: str) -> dict[str
 # filter (compiler/stages/s1_extract.py): a governance invariant is imported into a domain iff
 # its applies_to_kinds intersects this set and it declares no layer/surface scope.
 # TEST_DATA joined when transform vectors moved into the supplying domain's build
-# (conformance::CONSTITUTION_TEST_DATA_V1).
+# (conformance::CONSTITUTION_TEST_DATA_V2).
 _DOMAIN_INSTANTIATED = frozenset({"WF", "CC", "CS", "CT", "RB", "AC", "IN", "EV", "TI", "TE", "TEST_DATA"})
 
 

@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
 Transform conformance in the assembled snapshot — the assembler's half of
-software_governance/dossiers/transform_conformance.
+software_governance/dossiers/transform_conformance and software_governance/dossiers/platform_test_data.
 
-Each domain's build proves its transforms and writes what it found beside its compiled projections;
+Each build proves the transforms it supplies and writes what it found beside its compiled projections;
 the assembler carries it. Shown here, against the snapshot the regression just assembled:
 
-  * every domain built with conformance has its result carried to `transform_conformance/<domain>/`,
-    naming that domain;
+  * every build — each domain's, and the platform's — has its result carried to
+    `transform_conformance/<build>/`, naming that build;
+  * each result names every transform the build supplies, none refused, and names as carried exactly
+    the transforms its attestation records as carried in — never judged by a transform's name;
+  * the platform proves its own transforms: every one with a vector is proven, and each such vector is
+    carried as a declaration beside the transforms, so what was proven is inspectable;
   * the result is kept apart from composition conformance, which alone occupies `conformance/`;
   * the result is a constituent: listed in the manifest with the hash of its bytes, so the snapshot's
-    identity covers what its domains proved. In an admitted build the result follows from the
+    identity covers what its builds proved. In an admitted build the result follows from the
     declarations alone — a build with a failing case is never assembled — so it adds no instability,
     and excluding it would be a carve-out the identity's totality refuses.
-
-The platform is absent by decision: its build carries no conformance (STRUCTURE_BUILD_PLATFORM_CONFIG_V1),
-because the platform does not own a domain's implementations.
 
 Run: python scripts/testbed/test_transform_conformance_evidence.py [snapshot_root]
 """
@@ -27,6 +28,8 @@ from pathlib import Path
 
 W = Path(__file__).resolve().parents[3]
 PLATFORM = "platform"
+# The platform transform no inherited vector tests; it stays unproven until a change gives it one.
+PLATFORM_UNPROVEN = ["capability_transforms::CT_PURE_COMPARE_EQUAL_V0"]
 
 PASS = 0
 FAIL = 0
@@ -42,35 +45,50 @@ def check(name: str, condition: bool, detail: str = "") -> None:
         print(f"  ❌ {name}  {detail}")
 
 
+def _json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
 def main(snapshot: Path) -> int:
-    manifest = json.loads((snapshot / "manifest.json").read_text())
-    domains = sorted(d["domain"] for d in manifest["domains"] if d["domain"] != PLATFORM)
+    manifest = _json(snapshot / "manifest.json")
+    builds = sorted(d["domain"] for d in manifest["domains"])
     constituents = {c["path"]: c["sha256"] for c in manifest["constituents"]}
 
-    check("the snapshot composes domains built with conformance", bool(domains), str(domains))
-    for domain in domains:
-        rel = f"transform_conformance/{domain}/result.json"
+    check("the snapshot composes the platform and domains built with conformance",
+          PLATFORM in builds and len(builds) > 1, str(builds))
+    for build in builds:
+        rel = f"transform_conformance/{build}/result.json"
         path = snapshot / rel
         if not path.is_file():
-            check(f"{domain}: result carried", False, f"missing {rel}")
+            check(f"{build}: result carried", False, f"missing {rel}")
             continue
-        result = json.loads(path.read_text())
-        check(f"{domain}: result carried, naming its domain", result.get("domain") == domain,
+        result = _json(path)
+        check(f"{build}: result carried, naming its build", result.get("domain") == build,
               f"names {result.get('domain')!r}")
-        # Against the snapshot's own record of the domain's transforms, not the result's arithmetic: a
-        # transform the result forgot would otherwise be neither proven nor unproven, and uncounted.
-        own = sorted(json.loads(f.read_text())["fqdn_id"]
-                     for f in (snapshot / "canonical" / domain / "capability_transforms").glob("*.json")
-                     if f.name.startswith(f"{domain}__"))
+        # Against the snapshot's own record of the build's transforms and of what it carried in, not
+        # the result's arithmetic: a transform the result forgot would otherwise be uncounted.
+        transforms = sorted(_json(f)["fqdn_id"]
+                            for f in (snapshot / "canonical" / build / "capability_transforms").glob("*.json"))
+        attestation = _json(snapshot / "trust" / build / "structure_attestation.json")
+        carried = sorted(set(attestation.get("imported_capabilities", [])) & set(transforms))
+        supplied = [t for t in transforms if t not in carried]
         named = sorted(result.get("proven", []) + result.get("unproven", []) + result.get("refused", []))
-        check(f"{domain}: every one of its {len(own)} transform(s) is named, none refused",
-              named == own and not result.get("refused"), f"named {named}, declared {own}")
-        check(f"{domain}: result is a constituent the identity covers",
+        check(f"{build}: every one of its {len(supplied)} supplied transform(s) is named, none refused",
+              named == supplied and not result.get("refused"), f"named {named}, supplied {supplied}")
+        check(f"{build}: the {len(carried)} carried transform(s) are those its attestation records",
+              result.get("carried", []) == carried, f"result {result.get('carried')}, attested {carried}")
+        check(f"{build}: result is a constituent the identity covers",
               constituents.get(rel) == hashlib.sha256(path.read_bytes()).hexdigest(),
               "absent from manifest constituents, or hashed differently")
 
-    check("no result is carried for the platform, whose build runs no conformance",
-          not (snapshot / "transform_conformance" / PLATFORM).exists())
+    platform = _json(snapshot / "transform_conformance" / PLATFORM / "result.json")
+    vectors = sorted(_json(f)["frontmatter"]["target"]
+                     for f in (snapshot / "canonical" / PLATFORM / "test_data").glob("*.json"))
+    check("the platform proves every transform it has a vector for, and no other",
+          platform.get("proven") == vectors and platform.get("unproven") == PLATFORM_UNPROVEN,
+          f"proven {platform.get('proven')}, vectors {vectors}, unproven {platform.get('unproven')}")
+    check("every platform vector is carried as a declaration beside the transforms", len(vectors) > 0,
+          "no platform vector in canonical/platform/test_data")
     composition = sorted(p.name for p in (snapshot / "conformance").iterdir())
     check("composition conformance alone occupies conformance/", composition == ["composition.json"],
           str(composition))
