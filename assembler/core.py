@@ -553,7 +553,9 @@ def assemble(source_roots: list[Path], out_root: Path, profile: str) -> dict[str
 # Kinds a domain build instantiates. MUST match the compiler's _inject_imported_governance
 # filter (compiler/stages/s1_extract.py): a governance invariant is imported into a domain iff
 # its applies_to_kinds intersects this set and it declares no layer/surface scope.
-_DOMAIN_INSTANTIATED = frozenset({"WF", "CC", "CS", "CT", "RB", "AC", "IN", "EV", "TI", "TE"})
+# TEST_DATA joined when transform vectors moved into the supplying domain's build
+# (conformance::CONSTITUTION_TEST_DATA_V1).
+_DOMAIN_INSTANTIATED = frozenset({"WF", "CC", "CS", "CT", "RB", "AC", "IN", "EV", "TI", "TE", "TEST_DATA"})
 
 
 def _recompute_governance_closure(out_root: Path, source_domain: str) -> tuple[str, int]:
