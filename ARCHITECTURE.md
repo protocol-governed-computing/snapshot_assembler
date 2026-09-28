@@ -164,6 +164,9 @@ scripts/testbed/    test_indexes.py — run explicitly, not pytest-collected
 5. **Every copy of an artifact identity within a composition is identical.**
 6. **Every domain declaring source must be compiled.** A missing domain is refused rather than
    silently assembled from stale output — the assembler names the command to run.
+7. **The identity covers the claimed profile's content, not only its name.** The manifest carries
+   `profile_sha256`, a digest of the profile's declaration, and acceptance recomputes it from the
+   profile as it now reads. A profile weakened after sealing is refused, not silently honoured.
 
 ## 9. How to know it works
 

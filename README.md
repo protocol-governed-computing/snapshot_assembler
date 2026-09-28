@@ -111,10 +111,11 @@ pgc            # reports what is installed and whether the anchor resolves
 
 `PGC_DOMAIN_ROOTS` names an additional domain contributing its own `registry/structures` — the
 directory that *directly contains* it, not the repository above it; pointing one level too high is a
-silent no-op. `PGC_SNAPSHOT_ROOT` is where compiled output is written, and each domain build needs
-its own: every layer's output consolidates into one root, and verification rejects any file in that
-root the current build did not declare. `PGC_SNAPSHOT_PROFILES` is the directory holding snapshot
-profiles, required by the assembler and the runtime alike.
+silent no-op. Where compiled output is written is declared by each build configuration
+(`output_configuration.root`), not by the environment. `PGC_SNAPSHOT_PROFILES` is the directory
+holding snapshot profiles, required by the assembler and the runtime alike. A snapshot's identity
+covers the content of the profile it claims, so the profiles a node reads must be the ones it was
+sealed against.
 
 `PGC_BUILD_ROOT` is accepted and reported and **nothing reads it** — `PGC_SNAPSHOT_ROOT` is the
 anchor that controls output.

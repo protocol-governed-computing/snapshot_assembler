@@ -248,16 +248,20 @@ def enumerate_constituents(out_root: Path) -> list[dict[str, str]]:
     return out
 
 
-def compute_snapshot_identity(domains: list[dict], constituents: list[dict], profile: str) -> str:
+def compute_snapshot_identity(domains: list[dict], constituents: list[dict], profile: str,
+                              profile_sha256: str) -> str:
     """The snapshot's identity, derived from content and covering every constituent (SN-2, SN-6).
 
-    Three inputs, and each is there for a stated reason:
+    Four inputs, and each is there for a stated reason:
 
       * the domains identity view — the semantic identity of what was compiled;
       * every constituent, by path and by a hash OF ITS BYTES — so that changing any carried file
         changes the identity, which is SN-2's totality clause;
       * the claimed profile — a self-description that claims a profile and does not cover the claim
-        would let the claim change without the identity changing (SN-5, SN-6).
+        would let the claim change without the identity changing (SN-5, SN-6);
+      * the claimed profile's content — the name alone let a profile be weakened, requirements
+        removed from it, without the identity of any snapshot claiming it changing. The digest is
+        taken over the profile's declaration (`profile_sha256`).
 
     Provenance is excluded and that exclusion is declared in the manifest's `identity_covers`.
     It is observational content (`3e` §5): `assembled_at` differs between two assemblies of identical
@@ -265,7 +269,8 @@ def compute_snapshot_identity(domains: list[dict], constituents: list[dict], pro
     SN-6. What SN-6 requires covered is the description's determinative content, which this is.
     """
     payload = json.dumps(
-        {"domains": _identity_view(domains), "constituents": constituents, "profile": profile},
+        {"domains": _identity_view(domains), "constituents": constituents, "profile": profile,
+         "profile_sha256": profile_sha256},
         sort_keys=True, separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -330,6 +335,19 @@ def _profile_declaration(identity: str) -> dict[str, Any]:
     raise RuntimeError(
         f"snapshot claims profile {identity!r} and no profile of that identity was found under "
         f"{root} — a claim nobody can read is not a claim (3b SN-7)")
+
+
+def profile_digest(profile: str) -> str:
+    """The digest of the claimed profile's declaration, as the identity covers it.
+
+    Taken over the `snapshot_profile` block in canonical form rather than over the file: what the
+    profile requires is its declaration, and a change to the prose around it changes nothing a
+    snapshot is checked against.
+    """
+    declared = _profile_declaration(profile)
+    return hashlib.sha256(
+        json.dumps(declared, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
 
 
 def verify_profile(out_root: Path, profile: str) -> list[str]:
@@ -521,7 +539,8 @@ def assemble(source_roots: list[Path], out_root: Path, profile: str) -> dict[str
     # `3b` §6 requires all five, with the enumeration total. It was four per domain; six top-level
     # constituents were carried and enumerated nowhere, which under §6 is undeclared content.
     constituents = enumerate_constituents(out_root)
-    snapshot_id = compute_snapshot_identity(domains, constituents, profile)
+    sealed_profile = profile_digest(profile)
+    snapshot_id = compute_snapshot_identity(domains, constituents, profile, sealed_profile)
     manifest = {
         "manifest_version": MANIFEST_VERSION,
         "snapshot_id": snapshot_id,
@@ -529,11 +548,14 @@ def assemble(source_roots: list[Path], out_root: Path, profile: str) -> dict[str
         # What the identity is taken over, declared so a party who did not build this snapshot can
         # recompute it without reading the assembler (AI-16). Provenance is excluded as observational
         # content (`3e` §5) — see compute_snapshot_identity.
-        "identity_covers": ["domains", "constituents", "profile"],
+        "identity_covers": ["domains", "constituents", "profile", "profile_sha256"],
         # Written after sealing and therefore outside what was sealed. Declared rather than silently
         # skipped, so a party recomputing the identity knows exactly what to exclude (AI-16).
         "post_seal": list(POST_SEAL),
         "profile": profile,
+        # What the claimed profile declared when this snapshot was sealed. Acceptance recomputes it
+        # from the profile as it now reads and refuses a difference.
+        "profile_sha256": sealed_profile,
         "domains": domains,
         "constituents": constituents,
         "provenance": _build_provenance(inputs, domains),
@@ -683,7 +705,8 @@ def verify_snapshot(out_root: Path) -> dict[str, Any]:
       3. identity   — recomputed from the RECOMPUTED constituent hashes, compared to the identity
                       borne. Recomputing over recorded hashes detects a tampered manifest; only
                       recomputing over recomputed hashes detects a tampered constituent
-      4. profile    — the snapshot claims one
+      4. profile    — the snapshot claims one, and the profile it claims is the one it was sealed
+                      against: its declaration digests to the value the identity covers
 
     This previously compared recorded values to recorded values — manifest against metadata.json
     against attestation — which is transitive from construction and establishes nothing to a party
@@ -749,7 +772,20 @@ def verify_snapshot(out_root: Path) -> dict[str, Any]:
             + "; ".join(unmet[:5])
             + (f"; and {len(unmet) - 5} more" if len(unmet) > 5 else ""))
 
-    derived = compute_snapshot_identity(domains, recomputed, profile)
+    # The profile read now, not the digest the manifest carries: recomputing over the recorded value
+    # would accept a profile weakened after sealing, which is what covering its content is for.
+    sealed_profile = manifest.get("profile_sha256")
+    if not sealed_profile:
+        raise AssemblyError(
+            "manifest carries no profile_sha256 — the profile's content is not in the identity, so "
+            "a weakened profile could not be told from the one this snapshot was sealed against.")
+    current_profile = profile_digest(profile)
+    if current_profile != sealed_profile:
+        raise AssemblyError(
+            f"profile failure: {profile} now digests to {current_profile[:16]}…, and this snapshot "
+            f"was sealed against {sealed_profile[:16]}…. The profile it claims has changed since.")
+
+    derived = compute_snapshot_identity(domains, recomputed, profile, current_profile)
     borne = manifest.get("snapshot_id")
     if derived != borne:
         raise AssemblyError(
