@@ -196,7 +196,7 @@ def _is_post_seal(rel: str) -> bool:
 
 
 # What an attestation records rather than constitutes, per
-# `cryptographic_trust::CONSTITUTION_CRYPTOGRAPHIC_TRUST_V0`. The projection binding and the value
+# `cryptographic_trust::CONSTITUTION_CRYPTOGRAPHIC_TRUST_V1`. The projection binding and the value
 # over it are enforced by the runtime at boot and constitute the composition like any other content;
 # when the signing happened records something *about* it, is read by nothing, and changes on every
 # build. Counting it made a composition's identity a function of when it was built — two compiles of
