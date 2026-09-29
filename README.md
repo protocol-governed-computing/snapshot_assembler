@@ -117,8 +117,7 @@ holding snapshot profiles, required by the assembler and the runtime alike. A sn
 covers the content of the profile it claims, so the profiles a node reads must be the ones it was
 sealed against.
 
-`PGC_BUILD_ROOT` is accepted and reported and **nothing reads it** — `PGC_SNAPSHOT_ROOT` is the
-anchor that controls output.
+`PGC_BUILD_ROOT` is accepted and reported and **nothing reads it**.
 
 The full sequence, with the repositories it needs, is in
 [`pgc_install`](https://github.com/protocol-governed-computing/pgc_install).
