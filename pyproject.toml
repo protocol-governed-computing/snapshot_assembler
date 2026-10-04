@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "pgc-assembler"
-version = "4.0.0"
+version = "5.0.0"
 description = "PGC snapshot assembler — composes compiled projections into a manifest-pinned executable snapshot (import package: assembler)"
 readme = "README.md"
 requires-python = ">=3.10"
