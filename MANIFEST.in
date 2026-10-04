@@ -1,0 +1,15 @@
+# The in-tree build backend and the file it stages.
+#
+# `pyproject.toml` sets build-backend = "_build_hook" with backend-path = ["."],
+# so the hook must travel in the sdist: `python -m build` builds the wheel FROM
+# the sdist, in an isolated directory where anything not shipped does not exist.
+# Without these two lines the sdist builds and the wheel step then fails with
+# `Backend '_build_hook' is not available`.
+#
+# VERSION is the repo-root composition ordinal the hook copies into the package.
+# Omitting it does not fail the build — `_stage_ordinal` skips a missing file —
+# it produces a wheel whose ordinal is silently absent.
+include _build_hook.py
+include VERSION
+
+global-exclude __pycache__ *.pyc .DS_Store
