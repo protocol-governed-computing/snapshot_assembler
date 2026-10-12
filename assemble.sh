@@ -53,7 +53,7 @@ else
   done
   # Tool domains — repo-rooted rather than nested, one per tool. A tool domain declares
   # capabilities ABOUT a snapshot rather than within one; it composes like any other domain.
-  CANDIDATES+=("$UMBRELLA/snapshot_inspector" "$UMBRELLA/transformation")
+  CANDIDATES+=("$UMBRELLA/snapshot_inspector" "$UMBRELLA/transformation_compilers")
 
   UNCOMPILED=()
   for root in "${CANDIDATES[@]}"; do
