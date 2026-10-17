@@ -28,8 +28,6 @@ from pathlib import Path
 
 W = Path(__file__).resolve().parents[3]
 PLATFORM = "platform"
-# The platform transform no inherited vector tests; it stays unproven until a change gives it one.
-PLATFORM_UNPROVEN = ["capability_transforms::CT_PURE_COMPARE_EQUAL_V0"]
 
 PASS = 0
 FAIL = 0
@@ -84,8 +82,8 @@ def main(snapshot: Path) -> int:
     platform = _json(snapshot / "transform_conformance" / PLATFORM / "result.json")
     vectors = sorted(_json(f)["frontmatter"]["target"]
                      for f in (snapshot / "canonical" / PLATFORM / "test_data").glob("*.json"))
-    check("the platform proves every transform it has a vector for, and no other",
-          platform.get("proven") == vectors and platform.get("unproven") == PLATFORM_UNPROVEN,
+    check("the platform proves every transform, each by its vector",
+          platform.get("proven") == vectors and platform.get("unproven") == [],
           f"proven {platform.get('proven')}, vectors {vectors}, unproven {platform.get('unproven')}")
     check("every platform vector is carried as a declaration beside the transforms", len(vectors) > 0,
           "no platform vector in canonical/platform/test_data")
