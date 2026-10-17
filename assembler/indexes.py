@@ -43,14 +43,11 @@ def _authoring_rank(doc: dict) -> int:
     capability is executable there, and the authoring stays platform-owned. Both copies are
     canonical and both are legitimate; they are not interchangeable.
 
-    The binding copy is the authoring copy with the authored parts removed: `content_hash`,
-    `frontmatter` and the IR are identical, while `content` and `references` are empty and
-    `layer_code` names the consuming layer. So the copy that still carries authored content is the
-    authoring copy, and it is the one an identity must resolve to — `si.artifact.show` promises "the
-    published canonical artifact for an FQDN, as authored".
-
-    A binding copy also carries the `content_hash` of content it does not hold, which is the sharper
-    tell but not one to select on: a hash mismatch is a defect to report, not a discriminator.
+    The binding copy records exactly what the authoring copy records, so the two are the same
+    document, and `si snapshot validate`'s `republished_copies_agree` refuses any pair that is not.
+    An identity resolves to a copy that carries its authored content — `si.artifact.show` promises
+    "the published canonical artifact for an FQDN, as authored" — so a copy without content never
+    wins over one with it.
     """
     return 1 if (doc.get("content") or "").strip() else 0
 
