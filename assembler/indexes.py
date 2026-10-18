@@ -2,7 +2,7 @@
 indexes.py — cross-domain query indexes over the assembled snapshot.
 
 Three inspection indexes, built AFTER composition (the assembler is the only point with the full
-federated view of all domains — the PGC successor to RI-0's cross-structure `build` aggregation):
+federated view of all domains):
 
   * artifact_index/index.json — FQDN → domain / kind / owner_subdomain / canonical_path /
                                 evidence_paths / per-domain addresses. Consumed by `si`.
