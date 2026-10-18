@@ -196,7 +196,7 @@ def _is_post_seal(rel: str) -> bool:
 
 
 # What an attestation records rather than constitutes, per
-# `cryptographic_trust::CONSTITUTION_CRYPTOGRAPHIC_TRUST_V1`. The projection binding and the value
+# `cryptographic_trust::CONSTITUTION_CRYPTOGRAPHIC_TRUST_V0`. The projection binding and the value
 # over it are enforced by the runtime at boot and constitute the composition like any other content;
 # when the signing happened records something *about* it, is read by nothing, and changes on every
 # build. Counting it made a composition's identity a function of when it was built — two compiles of
@@ -576,7 +576,7 @@ def assemble(source_roots: list[Path], out_root: Path, profile: str) -> dict[str
 # filter (compiler/stages/s1_extract.py): a governance invariant is imported into a domain iff
 # its applies_to_kinds intersects this set and it declares no layer/surface scope.
 # TEST_DATA joined when transform vectors moved into the supplying domain's build
-# (conformance::CONSTITUTION_TEST_DATA_V2).
+# (conformance::CONSTITUTION_TEST_DATA_V0).
 _DOMAIN_INSTANTIATED = frozenset({"WF", "CC", "CS", "CT", "RB", "AC", "IN", "EV", "TI", "TE", "TEST_DATA"})
 
 
