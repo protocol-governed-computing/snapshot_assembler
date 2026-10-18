@@ -708,9 +708,9 @@ def verify_snapshot(out_root: Path) -> dict[str, Any]:
       4. profile    — the snapshot claims one, and the profile it claims is the one it was sealed
                       against: its declaration digests to the value the identity covers
 
-    This previously compared recorded values to recorded values — manifest against metadata.json
-    against attestation — which is transitive from construction and establishes nothing to a party
-    who did not build the snapshot (AI-16).
+    Every check recomputes from content. Comparing recorded values to recorded values — manifest
+    against metadata.json against attestation — is transitive from construction and establishes
+    nothing to a party who did not build the snapshot (AI-16).
 
     On any failure the snapshot is refused whole (SN-9). There is no partial acceptance.
     """
