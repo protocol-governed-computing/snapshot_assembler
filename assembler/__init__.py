@@ -7,12 +7,11 @@ from pathlib import Path
 
 
 def _release() -> str:
-    """The composition's release ordinal, read from the repo's single version declaration.
+    """The workspace's cycle ordinal, read from the repo's `VERSION` file.
 
-    PGC versions the *composition*, not each repo independently: all repos are released together
-    and the governance closure forces lockstep, so a monotonic integer names which composition a
-    repo belongs to. `VERSION` is the sole declaration — pyproject derives it, and so does this.
-    Never restate it as a literal; two statements of one fact is how they drift apart.
+    The ordinal names the development cycle a snapshot was assembled in. It is not the published
+    version, which `pyproject.toml` declares on its own. Never restate it as a literal; two
+    statements of one fact is how they drift apart.
     """
     # Source tree and editable installs: the repo-root VERSION is authoritative.
     declared = Path(__file__).resolve().parent.parent / "VERSION"

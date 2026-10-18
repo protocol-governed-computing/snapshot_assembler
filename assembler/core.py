@@ -18,7 +18,9 @@ Invariants enforced here:
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -450,16 +452,37 @@ def _git_commit(repo_root: Path | None) -> str:
         return "unknown"
 
 
+def _distribution(repo_root: Path | None) -> tuple[str, str] | None:
+    """The distribution a repo publishes, as its pyproject declares it: `(name, version)`.
+
+    Read by line rather than parsed as TOML, because `tomllib` is not in every Python this package
+    supports. A repo that publishes nothing has no pyproject and records nothing.
+    """
+    if repo_root is None or not (repo_root / "pyproject.toml").is_file():
+        return None
+    text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+    name = re.search(r'^name\s*=\s*"([^"]+)"', text, re.M)
+    version = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
+    return (name.group(1), version.group(1)) if name and version else None
+
+
 def _build_provenance(inputs: list[DomainInput], domains: list[dict]) -> dict[str, Any]:
     source_commits: dict[str, str] = {}
+    component_versions: dict[str, str] = {}
     for inp in inputs:
         if inp.repo_root is not None:
             source_commits[inp.repo_root.name] = _git_commit(inp.repo_root)
+            published = _distribution(inp.repo_root)
+            if published:
+                component_versions[published[0]] = published[1]
+    # The assembler names its own distribution: it is the one component certainly at work here.
+    component_versions["pgc-assembler"] = importlib.metadata.version("pgc-assembler")
     compiler_versions = {d["domain"]: d["compiler_version"] for d in domains}
     return {
         "assembler_version": ASSEMBLER_VERSION,
         "assembled_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source_commits": source_commits,
+        "component_versions": dict(sorted(component_versions.items())),
         "compiler_versions": compiler_versions,
     }
 
